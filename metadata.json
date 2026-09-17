@@ -1,0 +1,6 @@
+{
+  "name": "CutoffIQ — Cutoff Prediction & Choice Engine",
+  "description": "Calibrated JoSAA & CSAB cutoff intelligence engine, empirical backtest calibration, preference elicitation and choice-list optimizer based on serial dictatorship.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
