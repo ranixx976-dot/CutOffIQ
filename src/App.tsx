@@ -1,210 +1,333 @@
 import React, { useState, useEffect } from 'react';
-import {
-  ChoiceItem,
-  PredictionResult,
-  StudentProfile,
-} from './types';
-import { Header } from './components/Header';
-import { PredictorView } from './components/PredictorView';
-import { ChoiceListBuilder } from './components/ChoiceListBuilder';
-import { PreferenceElicitorModal } from './components/PreferenceElicitorModal';
-import { FloatFreezeAdvisor } from './components/FloatFreezeAdvisor';
-import { BacktestReportView } from './components/BacktestReportView';
-import { MethodologyView } from './components/MethodologyView';
-import { CANONICAL_POOLS_DATA, findSeatPoolData } from './data/josaaDataset';
-import { evaluateSeatPoolForStudent } from './engine/predictionEngine';
+import { Product, CartItem, PageType, ProductCategory, CompletedOrder } from './types';
+import { PRODUCTS } from './data/products';
+import { Navbar } from './components/Navbar';
+import { HeroSection } from './components/HeroSection';
+import { TrustStrip } from './components/TrustStrip';
+import { BestSellers } from './components/BestSellers';
+import { CategoryTiles } from './components/CategoryTiles';
+import { BrandStory } from './components/BrandStory';
+import { SocialProof } from './components/SocialProof';
+import { ComparisonBlock } from './components/ComparisonBlock';
+import { LifestyleGallery } from './components/LifestyleGallery';
+import { NewsletterSection } from './components/NewsletterSection';
+import { Footer } from './components/Footer';
+import { ShopView } from './components/ShopView';
+import { ProductDetailView } from './components/ProductDetailView';
+import { AboutView } from './components/AboutView';
+import { ReviewsView } from './components/ReviewsView';
+import { ShippingReturnsView } from './components/ShippingReturnsView';
+import { FaqView } from './components/FaqView';
+import { ContactView } from './components/ContactView';
+import { CartDrawer } from './components/CartDrawer';
+import { CheckoutModal } from './components/CheckoutModal';
+import { OrderSuccessModal } from './components/OrderSuccessModal';
+import { QuickViewModal } from './components/QuickViewModal';
+import { Toast } from './components/Toast';
 
 export default function App() {
-  const [profile, setProfile] = useState<StudentProfile>({
-    examType: 'JEE_ADVANCED',
-    rank: 350,
-    category: 'OPEN',
-    genderPool: 'Gender-Neutral',
-    homeState: 'Maharashtra',
-    targetRound: 6,
+  // Navigation & View State
+  const [currentPage, setCurrentPage] = useState<PageType>('home');
+  const [selectedProductId, setSelectedProductId] = useState<string>(PRODUCTS[0].id);
+  const [selectedCategory, setSelectedCategory] = useState<ProductCategory>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Modals & Drawers
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
+  const [completedOrder, setCompletedOrder] = useState<CompletedOrder | null>(null);
+
+  // Cart & Promo
+  const [cartItems, setCartItems] = useState<CartItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('veylora_cart');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      // fallback
+    }
+    // Seed with 1 bestseller by default for instant delight
+    return [
+      {
+        id: `cart-${PRODUCTS[0].id}-${Date.now()}`,
+        productId: PRODUCTS[0].id,
+        product: PRODUCTS[0],
+        color: PRODUCTS[0].defaultColor,
+        quantity: 1,
+        monogram: 'K.M.'
+      }
+    ];
   });
 
-  const [activeTab, setActiveTab] = useState<
-    'predictor' | 'choicelist' | 'elicitor' | 'floatfreeze' | 'backtest' | 'methodology'
-  >('predictor');
+  const [promoCode, setPromoCode] = useState<string | null>('FIRST500');
+  const [discountAmount, setDiscountAmount] = useState<number>(500);
 
-  const [isElicitorOpen, setIsElicitorOpen] = useState(false);
-  const [choices, setChoices] = useState<ChoiceItem[]>([]);
+  // Toast System
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Seed initial choices based on student rank on first mount
+  // Sync cart to localStorage
   useEffect(() => {
-    const seedPoolIds = [
-      'pool-iitb-cse-open-gn', // Reach (rank ~63)
-      'pool-iitd-cse-open-gn', // Reach (rank ~115)
-      'pool-iitm-cse-open-gn', // Target/Reach (rank ~165)
-      'pool-iitk-cse-open-gn', // Target (rank ~225)
-      'pool-iitd-mnc-open-gn', // Target (rank ~320)
-      'pool-iitd-ai-open-gn',  // Target (rank ~340)
-      'pool-iitb-ee-open-gn',  // Likely (rank ~425)
-      'pool-iitr-cse-open-gn', // Likely (rank ~430)
-      'pool-iith-cse-open-gn', // Likely (rank ~640)
-      'pool-iitkgp-ece-open-gn', // Safe (rank ~920)
-      'pool-iitb-me-open-gn',  // Safe (rank ~1650)
-    ];
+    try {
+      localStorage.setItem('veylora_cart', JSON.stringify(cartItems));
+    } catch (e) {
+      // ignore
+    }
+  }, [cartItems]);
 
-    const initialChoices: ChoiceItem[] = [];
-    seedPoolIds.forEach((id, idx) => {
-      const poolData = findSeatPoolData(id);
-      if (poolData) {
-        const pred = evaluateSeatPoolForStudent(poolData, profile, profile.targetRound);
-        if (pred) {
-          initialChoices.push({
-            id: `choice-${id}`,
-            seatPoolId: id,
-            prediction: pred,
-            preferenceRank: idx + 1,
-          });
-        }
+  // Scroll to top on navigation
+  const navigateTo = (page: PageType, productId?: string) => {
+    setCurrentPage(page);
+    if (productId) {
+      setSelectedProductId(productId);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleSearchQuerySelect = (query: string, category?: ProductCategory) => {
+    setSearchQuery(query);
+    if (category && category !== 'all') {
+      setSelectedCategory(category);
+    }
+    navigateTo('shop');
+  };
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+  };
+
+  // Cart Management
+  const handleAddToCart = (
+    product: Product,
+    selectedColor: string,
+    quantity: number = 1,
+    monogram?: string
+  ) => {
+    setCartItems((prev) => {
+      const existingIdx = prev.findIndex(
+        (item) =>
+          item.product.id === product.id &&
+          item.color === selectedColor &&
+          item.monogram === (monogram || undefined)
+      );
+
+      if (existingIdx > -1) {
+        const updated = [...prev];
+        updated[existingIdx].quantity += quantity;
+        return updated;
       }
+
+      const newItem: CartItem = {
+        id: `cart-${product.id}-${Date.now()}`,
+        productId: product.id,
+        product,
+        color: selectedColor,
+        quantity,
+        monogram: monogram || undefined
+      };
+      return [...prev, newItem];
     });
 
-    setChoices(initialChoices);
-  }, []);
+    showToast(`Added ${product.name} (${selectedColor}) to your bag`);
+    setIsCartOpen(true);
+  };
 
-  // Whenever student profile changes, recompute predictions on existing choices
-  const handleProfileChange = (updated: Partial<StudentProfile>) => {
-    const newProfile = { ...profile, ...updated };
-    setProfile(newProfile);
-
-    setChoices((prev) =>
-      prev.map((item) => {
-        const poolData = findSeatPoolData(item.seatPoolId);
-        if (poolData) {
-          const pred = evaluateSeatPoolForStudent(poolData, newProfile, newProfile.targetRound);
-          if (pred) {
-            return {
-              ...item,
-              prediction: pred,
-            };
-          }
-        }
-        return item;
-      })
+  const handleUpdateCartQuantity = (cartItemId: string, newQuantity: number) => {
+    if (newQuantity <= 0) {
+      handleRemoveCartItem(cartItemId);
+      return;
+    }
+    setCartItems((prev) =>
+      prev.map((item) => (item.id === cartItemId ? { ...item, quantity: newQuantity } : item))
     );
   };
 
-  const handleAddChoice = (prediction: PredictionResult) => {
-    if (choices.some((c) => c.seatPoolId === prediction.seatPool.id)) return;
-
-    const newChoice: ChoiceItem = {
-      id: `choice-${prediction.seatPool.id}`,
-      seatPoolId: prediction.seatPool.id,
-      prediction,
-      preferenceRank: choices.length + 1,
-    };
-    setChoices([...choices, newChoice]);
+  const handleRemoveCartItem = (cartItemId: string) => {
+    setCartItems((prev) => prev.filter((item) => item.id !== cartItemId));
+    showToast('Item removed from carry bag');
   };
 
-  const handleRemoveChoice = (seatPoolId: string) => {
-    const filtered = choices
-      .filter((c) => c.seatPoolId !== seatPoolId)
-      .map((c, idx) => ({ ...c, preferenceRank: idx + 1 }));
-    setChoices(filtered);
-  };
-
-  const handleMoveChoice = (index: number, direction: 'up' | 'down') => {
-    if (
-      (direction === 'up' && index === 0) ||
-      (direction === 'down' && index === choices.length - 1)
-    ) {
-      return;
+  const handleApplyPromo = (code: string) => {
+    const upper = code.trim().toUpperCase();
+    if (upper === 'FIRST500') {
+      setPromoCode('FIRST500');
+      setDiscountAmount(500);
+      showToast('₹500 inaugural discount applied!');
+    } else if (upper === 'PATINA10') {
+      setPromoCode('PATINA10');
+      const subtotal = cartItems.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
+      const disc = Math.round(subtotal * 0.1);
+      setDiscountAmount(disc);
+      showToast(`10% discount applied (-₹${disc})`);
+    } else if (upper === 'HEIRLOOM') {
+      setPromoCode('HEIRLOOM');
+      setDiscountAmount(1000);
+      showToast('₹1,000 heirloom collector credit applied!');
+    } else {
+      showToast('Invalid promo code. Try FIRST500 for ₹500 off.');
     }
-
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    const reordered = [...choices];
-    const temp = reordered[index];
-    reordered[index] = reordered[targetIndex];
-    reordered[targetIndex] = temp;
-
-    // Renumber preference ranks
-    const renumbered = reordered.map((c, idx) => ({ ...c, preferenceRank: idx + 1 }));
-    setChoices(renumbered);
   };
 
-  const handleClearList = () => {
-    setChoices([]);
+  const handleOrderComplete = (order: CompletedOrder) => {
+    setCompletedOrder(order);
+    setCartItems([]);
+    setIsCheckoutOpen(false);
+    showToast(`Order ${order.orderId} successfully placed! BlueDart tracking generated.`);
   };
 
-  const handleApplyInferredOrdering = (reordered: ChoiceItem[]) => {
-    const renumbered = reordered.map((c, idx) => ({ ...c, preferenceRank: idx + 1 }));
-    setChoices(renumbered);
-  };
+  const selectedProduct =
+    PRODUCTS.find((p) => p.id === selectedProductId) || PRODUCTS[0];
 
   return (
-    <div id="cutoffiq-app-root" className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans">
-      {/* Header */}
-      <Header
-        profile={profile}
-        onProfileChange={handleProfileChange}
-        activeTab={activeTab}
-        onTabChange={(t) => {
-          if (t === 'elicitor') {
-            setIsElicitorOpen(true);
-          } else {
-            setActiveTab(t);
-          }
-        }}
-        choicesCount={choices.length}
+    <div id="veylora-storefront" className="min-h-screen bg-[#fbf9f5] text-[#1a1715] flex flex-col font-sans selection:bg-[#c07a46]/20 selection:text-[#1a1715]">
+      
+      {/* Universal Navigation */}
+      <Navbar
+        currentPage={currentPage}
+        onNavigate={navigateTo}
+        cartCount={cartItems.reduce((s, i) => s + i.quantity, 0)}
+        onOpenCart={() => setIsCartOpen(true)}
+        onSearchQuerySelect={handleSearchQuerySelect}
+        onQuickAdd={(product, color) => handleAddToCart(product, color, 1)}
       />
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {activeTab === 'predictor' && (
-          <PredictorView
-            profile={profile}
-            choices={choices}
-            onAddChoice={handleAddChoice}
-            onRemoveChoice={handleRemoveChoice}
+      {/* Main Routed Page Content */}
+      <main className="flex-1">
+        
+        {/* VIEW 1: HOMEPAGE */}
+        {currentPage === 'home' && (
+          <>
+            <HeroSection
+              onShopClick={() => navigateTo('shop')}
+              onStoryClick={() => navigateTo('about')}
+            />
+            <TrustStrip />
+            <BestSellers
+              products={PRODUCTS}
+              onSelectProduct={(id) => navigateTo('product-detail', id)}
+              onQuickAdd={(product, color) => handleAddToCart(product, color, 1)}
+              onQuickView={(product) => setQuickViewProduct(product)}
+              onViewAll={() => navigateTo('shop')}
+            />
+            <CategoryTiles
+              onSelectCategory={(cat) => {
+                setSelectedCategory(cat);
+                navigateTo('shop');
+              }}
+            />
+            <BrandStory onLearnMore={() => navigateTo('about')} />
+            <SocialProof onViewAllReviews={() => navigateTo('reviews')} />
+            <ComparisonBlock />
+            <LifestyleGallery />
+            <NewsletterSection
+              onSubscribed={(email) =>
+                showToast(`Welcome ${email}! Code FIRST500 active for ₹500 off.`)
+              }
+            />
+          </>
+        )}
+
+        {/* VIEW 2: FULL CATALOG / SHOP */}
+        {currentPage === 'shop' && (
+          <ShopView
+            products={PRODUCTS}
+            initialCategory={selectedCategory}
+            initialSearchQuery={searchQuery}
+            onSelectProduct={(id) => navigateTo('product-detail', id)}
+            onQuickAdd={(product, color) => handleAddToCart(product, color, 1)}
+            onQuickView={(product) => setQuickViewProduct(product)}
           />
         )}
 
-        {activeTab === 'choicelist' && (
-          <ChoiceListBuilder
-            choices={choices}
-            profile={profile}
-            onMoveChoice={handleMoveChoice}
-            onRemoveChoice={handleRemoveChoice}
-            onClearList={handleClearList}
-            onOpenElicitor={() => setIsElicitorOpen(true)}
-            onNavigateToPredictor={() => setActiveTab('predictor')}
+        {/* VIEW 3: PRODUCT DETAIL PAGE */}
+        {currentPage === 'product-detail' && (
+          <ProductDetailView
+            product={selectedProduct}
+            allProducts={PRODUCTS}
+            onSelectProduct={(id) => navigateTo('product-detail', id)}
+            onAddToCart={handleAddToCart}
+            onOpenReviews={() => navigateTo('reviews')}
           />
         )}
 
-        {activeTab === 'floatfreeze' && (
-          <FloatFreezeAdvisor
-            choices={choices}
-            profile={profile}
-            onNavigateToPredictor={() => setActiveTab('predictor')}
-          />
+        {/* VIEW 4: CRAFT & STORY */}
+        {currentPage === 'about' && (
+          <AboutView onShopClick={() => navigateTo('shop')} />
         )}
 
-        {activeTab === 'backtest' && <BacktestReportView />}
+        {/* VIEW 5: VERIFIED REVIEWS */}
+        {currentPage === 'reviews' && (
+          <ReviewsView onShopClick={() => navigateTo('shop')} />
+        )}
 
-        {activeTab === 'methodology' && <MethodologyView />}
+        {/* VIEW 6: SHIPPING & RETURNS */}
+        {currentPage === 'shipping' && (
+          <ShippingReturnsView onShopClick={() => navigateTo('shop')} />
+        )}
+
+        {/* VIEW 7: FAQ & CARE */}
+        {currentPage === 'faq' && <FaqView />}
+
+        {/* VIEW 8: ATELIER CONCIERGE & CONTACT */}
+        {currentPage === 'contact' && <ContactView />}
+
       </main>
 
-      {/* Pairwise Preference Elicitor Modal */}
-      <PreferenceElicitorModal
-        choices={choices}
-        isOpen={isElicitorOpen}
-        onClose={() => setIsElicitorOpen(false)}
-        onApplyOrdering={handleApplyInferredOrdering}
+      {/* Universal Luxury Footer */}
+      <Footer
+        onNavigate={navigateTo}
+        onSelectCategory={(cat) => {
+          setSelectedCategory(cat);
+          navigateTo('shop');
+        }}
       />
 
-      {/* Bottom Footer */}
-      <footer id="app-footer" className="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>CutoffIQ Engine • JoSAA &amp; CSAB Counselling Intelligence</span>
-          <span className="font-mono text-[11px] text-slate-400">
-            Statistical engine verified on 2020–2024 cutoff records
-          </span>
-        </div>
-      </footer>
+      {/* Slide-out Cart Drawer */}
+      <CartDrawer
+        isOpen={isCartOpen}
+        onClose={() => setIsCartOpen(false)}
+        items={cartItems}
+        onUpdateQuantity={handleUpdateCartQuantity}
+        onRemoveItem={handleRemoveCartItem}
+        onApplyPromo={handleApplyPromo}
+        discountAmount={discountAmount}
+        appliedPromoCode={promoCode}
+        onCheckout={() => {
+          setIsCartOpen(false);
+          setIsCheckoutOpen(true);
+        }}
+      />
+
+      {/* Express Checkout Modal */}
+      <CheckoutModal
+        isOpen={isCheckoutOpen}
+        onClose={() => setIsCheckoutOpen(false)}
+        items={cartItems}
+        discountAmount={discountAmount}
+        promoCode={promoCode}
+        onOrderComplete={handleOrderComplete}
+      />
+
+      {/* Order Confirmed Modal */}
+      <OrderSuccessModal
+        order={completedOrder}
+        onClose={() => setCompletedOrder(null)}
+        onContinueShopping={() => navigateTo('shop')}
+      />
+
+      {/* Quick View Modal */}
+      <QuickViewModal
+        product={quickViewProduct}
+        onClose={() => setQuickViewProduct(null)}
+        onAddToCart={handleAddToCart}
+        onViewFullDetails={(id) => {
+          setQuickViewProduct(null);
+          navigateTo('product-detail', id);
+        }}
+      />
+
+      {/* Toast Notification */}
+      <Toast message={toastMessage} onClose={() => setToastMessage(null)} />
+
     </div>
   );
 }
